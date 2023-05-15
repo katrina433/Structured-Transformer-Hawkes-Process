@@ -13,11 +13,6 @@ class EventData(torch.utils.data.Dataset):
         Data should be a list of event streams; each event stream is a list of dictionaries;
         each dictionary contains: time_since_start, time_since_last_event, type_event
         """
-        # print("dataset length", len(data)) # training set num streams = 527, testing = 65
-        # print("instance 0 length", len(data[0])) # training = 4, testing = 4
-        # print("instance 100 length", len(data[1])) # training = 5, testing = 3
-        # print(data[0])
-        # print(data[1])
         self.time = [[elem['time_since_start'] for elem in inst] for inst in data]
         self.time_gap = [[elem['time_since_last_event'] for elem in inst] for inst in data]
         # plus 1 since there could be event type 0, but we use 0 as padding
