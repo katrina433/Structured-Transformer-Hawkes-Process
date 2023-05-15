@@ -87,16 +87,19 @@ class Encoder(nn.Module):
         """
         batch_size, seq_len = vertex.size()
         similarity_matrix = torch.zeros(batch_size, 1, seq_len, seq_len)
+        A = np.load('D:\Cornell 2023 Spring\CS 6850 Networks\Structured-Transformer-Hawkes-Process\A.npy')
+        W = np.load('D:\Cornell 2023 Spring\CS 6850 Networks\Structured-Transformer-Hawkes-Process\W.npy')
         for b in range(batch_size):
             for i in range(seq_len):
                 for j in range(seq_len):
                     v_i = vertex[b,i].item()
                     v_j = vertex[b,j].item()
                     if v_i != 0 and v_j != 0:
-                        zip_i = self.zip_mapping[v_i]
-                        zip_j = self.zip_mapping[v_j]
-                        if abs(zip_i - zip_j) <= 10:
-                            similarity_matrix[b,0,i,j] = 1
+                        # zip_i = self.zip_mapping[v_i]
+                        # zip_j = self.zip_mapping[v_j]
+                        # if abs(zip_i - zip_j) <= 10:
+                        #     similarity_matrix[b,0,i,j] = 1
+                        similarity_matrix[b,0,i,j] = A[v_i, v_j] * W[v_i, v_j]
         return similarity_matrix
 
     def forward(self, event_type, vertex, event_time, non_pad_mask):
