@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import pickle
 
 import transformer.Constants as Constants
 from transformer.Layers import EncoderLayer
@@ -34,6 +35,11 @@ def get_subsequent_mask(seq):
     subsequent_mask = subsequent_mask.unsqueeze(0).expand(sz_b, -1, -1)  # b x ls x ls
     return subsequent_mask
 
+def get_zip_mapping():
+    with open('./data/zip_mapping.pkl', 'rb') as f:
+        zip_mapping = pickle.load(f, encoding='latin-1')
+    return zip_mapping
+
 
 class Encoder(nn.Module):
     """ A encoder model with self attention mechanism. """
@@ -44,6 +50,7 @@ class Encoder(nn.Module):
             n_layers, n_head, d_k, d_v, dropout):
         super().__init__()
 
+        self.zip_mapping = get_zip_mapping()
         self.d_model = d_model
 
         # position vector, used for temporal encoding
@@ -72,6 +79,25 @@ class Encoder(nn.Module):
         result[:, :, 0::2] = torch.sin(result[:, :, 0::2])
         result[:, :, 1::2] = torch.cos(result[:, :, 1::2])
         return result * non_pad_mask
+    
+    def similarity(self, vertex):
+        """
+        Input: batch*seq_len.
+        Output: batch*batch*seq_len*seq_len.
+        """
+        batch_size, seq_len = vertex.size()
+        similarity_matrix = torch.zeros(batch_size, 1, seq_len, seq_len)
+        for b in range(batch_size):
+            for i in range(seq_len):
+                for j in range(seq_len):
+                    v_i = vertex[b,i].item()
+                    v_j = vertex[b,j].item()
+                    if v_i != 0 and v_j != 0:
+                        zip_i = self.zip_mapping[v_i]
+                        zip_j = self.zip_mapping[v_j]
+                        if abs(zip_i - zip_j) <= 10:
+                            similarity_matrix[b,0,i,j] = 1
+        return similarity_matrix
 
     def forward(self, event_type, vertex, event_time, non_pad_mask):
         """ Encode event sequences via masked self-attention. """
@@ -82,6 +108,7 @@ class Encoder(nn.Module):
         slf_attn_mask_keypad = get_attn_key_pad_mask(seq_k=event_type, seq_q=event_type)
         slf_attn_mask_keypad = slf_attn_mask_keypad.type_as(slf_attn_mask_subseq)
         slf_attn_mask = (slf_attn_mask_keypad + slf_attn_mask_subseq).gt(0)
+        similarity_matrix = self.similarity(vertex) # A
 
         tem_enc = self.temporal_enc(event_time, non_pad_mask) # Z
         ver_output = self.vertex_emb(vertex) # EV
@@ -91,6 +118,7 @@ class Encoder(nn.Module):
             enc_output += ver_output + tem_enc # X
             enc_output, _ = enc_layer(
                 enc_output,
+                similarity_matrix,
                 non_pad_mask=non_pad_mask,
                 slf_attn_mask=slf_attn_mask)
         return enc_output
@@ -180,12 +208,12 @@ class Transformer(nn.Module):
         Return the hidden representations and predictions.
         For a sequence (l_1, l_2, ..., l_N), we predict (l_2, ..., l_N, l_{N+1}).
         Input: event_type: batch*seq_len;
+               vertex: batch*seq_len;
                event_time: batch*seq_len.
         Output: enc_output: batch*seq_len*model_dim;
                 type_prediction: batch*seq_len*num_classes (not normalized);
                 time_prediction: batch*seq_len.
         """
-
         non_pad_mask = get_non_pad_mask(event_type)
 
         enc_output = self.encoder(event_type, vertex, event_time, non_pad_mask)
