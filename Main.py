@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import pickle
 import time
+import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -21,19 +22,20 @@ def prepare_dataloader(opt):
         with open(name, 'rb') as f:
             data = pickle.load(f, encoding='latin-1')
             num_types = data['dim_process']
+            num_vertices = data['num_vertices']
             data = data[dict_name]
-            return data, int(num_types)
+            return data, int(num_types), int(num_vertices)
 
     print('[Info] Loading train data...')
-    train_data, num_types = load_data(opt.data + 'train.pkl', 'train')
+    train_data, num_types, num_vertices = load_data(opt.data + 'train.pkl', 'train')
     print('[Info] Loading dev data...')
-    dev_data, _ = load_data(opt.data + 'dev.pkl', 'dev')
+    dev_data, _, _ = load_data(opt.data + 'dev.pkl', 'dev')
     print('[Info] Loading test data...')
-    test_data, _ = load_data(opt.data + 'test.pkl', 'test')
+    test_data, _, _ = load_data(opt.data + 'test.pkl', 'test')
 
     trainloader = get_dataloader(train_data, opt.batch_size, shuffle=True)
     testloader = get_dataloader(test_data, opt.batch_size, shuffle=False)
-    return trainloader, testloader, num_types
+    return trainloader, testloader, num_types, num_vertices
 
 
 def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
@@ -49,12 +51,12 @@ def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
     for batch in tqdm(training_data, mininterval=2,
                       desc='  - (Training)   ', leave=False):
         """ prepare data """
-        event_time, time_gap, event_type = map(lambda x: x.to(opt.device), batch)
+        event_time, time_gap, event_type, vertex = map(lambda x: x.to(opt.device), batch)
 
         """ forward """
         optimizer.zero_grad()
 
-        enc_out, prediction = model(event_type, event_time)
+        enc_out, prediction = model(event_type, vertex, event_time)
 
         """ backward """
         # negative log-likelihood
@@ -101,10 +103,10 @@ def eval_epoch(model, validation_data, pred_loss_func, opt):
         for batch in tqdm(validation_data, mininterval=2,
                           desc='  - (Validation) ', leave=False):
             """ prepare data """
-            event_time, time_gap, event_type = map(lambda x: x.to(opt.device), batch)
+            event_time, time_gap, event_type, vertex = map(lambda x: x.to(opt.device), batch)
 
             """ forward """
-            enc_out, prediction = model(event_type, event_time)
+            enc_out, prediction = model(event_type, vertex, event_time)
 
             """ compute loss """
             event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type)
@@ -190,6 +192,7 @@ def main():
     opt = parser.parse_args()
 
     # default device is CUDA
+    # opt.device = torch.device('mps')
     opt.device = torch.device('cpu')
 
     # setup the log file
@@ -199,11 +202,12 @@ def main():
     print('[Info] parameters: {}'.format(opt))
 
     """ prepare dataloader """
-    trainloader, testloader, num_types = prepare_dataloader(opt)
+    trainloader, testloader, num_types, num_vertices = prepare_dataloader(opt)
 
     """ prepare model """
     model = Transformer(
         num_types=num_types,
+        num_vertices=num_vertices,
         d_model=opt.d_model,
         d_rnn=opt.d_rnn,
         d_inner=opt.d_inner_hid,
@@ -231,7 +235,15 @@ def main():
     print('[Info] Number of parameters: {}'.format(num_params))
 
     """ train the model """
+    print("start training...")
+    start_time = time.time()
     train(model, trainloader, testloader, optimizer, scheduler, pred_loss_func, opt)
+    total_time = time.time() - start_time
+    time_str = "time {},".format(
+        datetime.timedelta(seconds=int(total_time))
+    )
+    print("finish training")
+    print(time_str)
 
 
 if __name__ == '__main__':

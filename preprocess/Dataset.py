@@ -13,10 +13,16 @@ class EventData(torch.utils.data.Dataset):
         Data should be a list of event streams; each event stream is a list of dictionaries;
         each dictionary contains: time_since_start, time_since_last_event, type_event
         """
+        # print("dataset length", len(data)) # training set num streams = 527, testing = 65
+        # print("instance 0 length", len(data[0])) # training = 4, testing = 4
+        # print("instance 100 length", len(data[1])) # training = 5, testing = 3
+        # print(data[0])
+        # print(data[1])
         self.time = [[elem['time_since_start'] for elem in inst] for inst in data]
         self.time_gap = [[elem['time_since_last_event'] for elem in inst] for inst in data]
         # plus 1 since there could be event type 0, but we use 0 as padding
         self.event_type = [[elem['type_event'] + 1 for elem in inst] for inst in data]
+        self.vertex = [[elem['vertex'] + 1 for elem in inst] for inst in data]
 
         self.length = len(data)
 
@@ -25,7 +31,7 @@ class EventData(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         """ Each returned element is a list, which represents an event stream """
-        return self.time[idx], self.time_gap[idx], self.event_type[idx]
+        return self.time[idx], self.time_gap[idx], self.event_type[idx], self.vertex[idx]
 
 
 def pad_time(insts):
@@ -55,11 +61,12 @@ def pad_type(insts):
 def collate_fn(insts):
     """ Collate function, as required by PyTorch. """
 
-    time, time_gap, event_type = list(zip(*insts))
+    time, time_gap, event_type, vertex = list(zip(*insts))
     time = pad_time(time)
     time_gap = pad_time(time_gap)
     event_type = pad_type(event_type)
-    return time, time_gap, event_type
+    vertex = pad_type(vertex)
+    return time, time_gap, event_type, vertex
 
 
 def get_dataloader(data, batch_size, shuffle=True):

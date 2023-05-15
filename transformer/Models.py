@@ -40,7 +40,7 @@ class Encoder(nn.Module):
 
     def __init__(
             self,
-            num_types, d_model, d_inner,
+            num_types, num_vertices, d_model, d_inner,
             n_layers, n_head, d_k, d_v, dropout):
         super().__init__()
 
@@ -49,10 +49,14 @@ class Encoder(nn.Module):
         # position vector, used for temporal encoding
         self.position_vec = torch.tensor(
             [math.pow(10000.0, 2.0 * (i // 2) / d_model) for i in range(d_model)],
+            # device=torch.device('mps'))
             device=torch.device('cpu'))
 
-        # event type embedding
+        # event type embedding U
         self.event_emb = nn.Embedding(num_types + 1, d_model, padding_idx=Constants.PAD)
+
+        # vertex embedding E
+        self.vertex_emb = nn.Embedding(num_vertices + 1, d_model, padding_idx=Constants.PAD)
 
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout, normalize_before=False)
@@ -69,7 +73,7 @@ class Encoder(nn.Module):
         result[:, :, 1::2] = torch.cos(result[:, :, 1::2])
         return result * non_pad_mask
 
-    def forward(self, event_type, event_time, non_pad_mask):
+    def forward(self, event_type, vertex, event_time, non_pad_mask):
         """ Encode event sequences via masked self-attention. """
 
         # prepare attention masks
@@ -79,11 +83,12 @@ class Encoder(nn.Module):
         slf_attn_mask_keypad = slf_attn_mask_keypad.type_as(slf_attn_mask_subseq)
         slf_attn_mask = (slf_attn_mask_keypad + slf_attn_mask_subseq).gt(0)
 
-        tem_enc = self.temporal_enc(event_time, non_pad_mask)
-        enc_output = self.event_emb(event_type)
-
+        tem_enc = self.temporal_enc(event_time, non_pad_mask) # Z
+        ver_output = self.vertex_emb(vertex) # EV
+        enc_output = self.event_emb(event_type) # UY
+        
         for enc_layer in self.layer_stack:
-            enc_output += tem_enc
+            enc_output += ver_output + tem_enc # X
             enc_output, _ = enc_layer(
                 enc_output,
                 non_pad_mask=non_pad_mask,
@@ -134,12 +139,13 @@ class Transformer(nn.Module):
 
     def __init__(
             self,
-            num_types, d_model=256, d_rnn=128, d_inner=1024,
+            num_types, num_vertices, d_model=256, d_rnn=128, d_inner=1024,
             n_layers=4, n_head=4, d_k=64, d_v=64, dropout=0.1):
         super().__init__()
 
         self.encoder = Encoder(
             num_types=num_types,
+            num_vertices=num_vertices,
             d_model=d_model,
             d_inner=d_inner,
             n_layers=n_layers,
@@ -169,7 +175,7 @@ class Transformer(nn.Module):
         # prediction of next event type
         self.type_predictor = Predictor(d_model, num_types)
 
-    def forward(self, event_type, event_time):
+    def forward(self, event_type, vertex, event_time):
         """
         Return the hidden representations and predictions.
         For a sequence (l_1, l_2, ..., l_N), we predict (l_2, ..., l_N, l_{N+1}).
@@ -182,7 +188,7 @@ class Transformer(nn.Module):
 
         non_pad_mask = get_non_pad_mask(event_type)
 
-        enc_output = self.encoder(event_type, event_time, non_pad_mask)
+        enc_output = self.encoder(event_type, vertex, event_time, non_pad_mask)
         enc_output = self.rnn(enc_output, non_pad_mask)
 
         time_prediction = self.time_predictor(enc_output, non_pad_mask)
