@@ -158,9 +158,13 @@ def train(model, training_data, validation_data, optimizer, scheduler, pred_loss
 
         # logging
         with open(opt.log, 'a') as f:
-            f.write('{epoch}, {ll: 8.5f}, {acc: 8.5f}, {rmse: 8.5f}\n'
-                    .format(epoch=epoch, ll=valid_event, acc=valid_type, rmse=valid_time))
-
+            f.write('{epoch}, {train_ll: 8.5f}, {train_acc: 8.5f}, {train_rmse: 8.5f}, {val_ll: 8.5f}, {val_acc: 8.5f}, {val_rmse: 8.5f}\n'
+                    .format(epoch=epoch, train_ll=train_event, train_acc=train_type, train_rmse=train_time, val_ll=valid_event, val_acc=valid_type, val_rmse=valid_time))
+            if epoch_i == opt.epoch - 1:
+                f.write('\nMean validation ll: {event: 8.5f}, '
+              'Mean validation accuracy: {pred: 8.5f}, Mean validation RMSE: {rmse: 8.5f}'
+              .format(event=sum(valid_event_losses)/len(valid_event_losses), pred=sum(valid_pred_losses)/len(valid_pred_losses), rmse=sum(valid_rmse)/len(valid_rmse)))
+                
         scheduler.step()
 
 
@@ -197,7 +201,7 @@ def main():
 
     # setup the log file
     with open(opt.log, 'w') as f:
-        f.write('Epoch, Log-likelihood, Accuracy, RMSE\n')
+        f.write('Epoch, Train Log-likelihood, Train Accuracy, Train RMSE, Validation Log-likelihood, Validation Accuracy, Validation RMSE\n')
 
     print('[Info] parameters: {}'.format(opt))
 
