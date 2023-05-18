@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 plt.style.use('_mpl-gallery')
 import numpy as np
 import glob, os
+import seaborn as sns
 
 def cmap(name='tab20'):
     return plt.get_cmap(name)
@@ -27,23 +28,51 @@ def bar():
             for metric, idx in zip(metrics, range(3)):
                 metrics_data[metric].append(float(match[idx]))
                 
-    # may want to only select top 3-5 options for ease of plotting
+    # select top 3-5 most likely options (according to log likelihood) for ease of plotting
+    top_n = 5
+    # sorts in ascending order
+    indices = np.argsort(np.array(metrics_data[metrics[0]]))[-top_n:]
+    selected_filenames = np.array(file_names)[indices]
+    selected_ll = np.array(metrics_data[metrics[0]])[indices]
+    selected_acc = np.array(metrics_data[metrics[1]])[indices]
+    selected_rmse = np.array(metrics_data[metrics[2]])[indices]
     
+    print(selected_filenames)
     
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
     for ax in (ax1, ax2, ax3):
         ax.set_xticks([])
     fig.suptitle("mean validation metrics")
-    ax1.bar(range(len(file_names)), np.array(metrics_data[metrics[0]]), label=file_names, color=cmap()(np.linspace(0.0, 0.9, len(file_names))))
-    ax1.set(ylim=(-0.5, 0.5))
+    ax1.bar(range(top_n), selected_ll, label=selected_filenames, color=cmap()(np.linspace(0.0, 0.9, top_n)))
+    ax1.set(ylim=(-0.8, 0.2))
     ax1.set_title("log-likelihood")
-    # ax1.legend()
-    ax2.bar(range(len(file_names)), metrics_data[metrics[1]], label=file_names, color=cmap()(np.linspace(0.0, 0.9, len(file_names))))
-    ax2.set(ylim=(0, 1))
+    ax2.bar(range(top_n), selected_acc, label=selected_filenames, color=cmap()(np.linspace(0.0, 0.9, top_n)))
+    ax2.set(ylim=(0.5, 0.9))
     ax2.set_title("accuracy")
-    ax3.bar(range(len(file_names)), metrics_data[metrics[2]], label=file_names, color=cmap()(np.linspace(0.0, 0.9, len(file_names))))
+    ax3.bar(range(top_n), selected_rmse, label=selected_filenames, color=cmap()(np.linspace(0.0, 0.9, top_n)))
+    ax3.set(ylim=(1.0, 1.3))
     ax3.set_title("RMSE")
-    fig.set_size_inches(8, 3)
+    ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
+    fig.set_size_inches(10, 5)
     fig.tight_layout()
     fig.savefig("comparison.png", dpi = 100)
 bar()
+
+def plotA():
+    # 75 x 75 matrix representing node (zipcode areas) interactions on 911 calls
+    A=np.load("911_network_structure/A_cumulative_dt_max_20.npy")
+    W=np.load("911_network_structure/W_cumulative_dt_max_20.npy")
+    # Info we might want to collect:
+    # some measure of sparsity, like average degree, or a heatmap
+    # size of connected components?
+    print(A*W)
+    sns.heatmap(data=(A*W), annot=False)
+    fig = plt.gcf()
+    fig.set_size_inches(4, 4)
+    # TODO: set x and y axis to zipcode number?
+    plt.title("Interaction between zipcodes")
+    plt.ylabel("Initiating node")
+    plt.xlabel("Receiving node")
+    plt.tight_layout()
+    fig.savefig("implic_net_struct.png", dpi=100)
+# plotA()
