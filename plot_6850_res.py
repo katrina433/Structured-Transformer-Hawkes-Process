@@ -4,6 +4,7 @@ plt.style.use('_mpl-gallery')
 import numpy as np
 import glob, os
 import seaborn as sns
+import pickle as pkl
 
 def cmap(name='tab20'):
     return plt.get_cmap(name)
@@ -56,7 +57,7 @@ def bar():
     fig.set_size_inches(10, 5)
     fig.tight_layout()
     fig.savefig("comparison.png", dpi = 100)
-bar()
+# bar()
 
 def plotA():
     # 75 x 75 matrix representing node (zipcode areas) interactions on 911 calls
@@ -66,13 +67,20 @@ def plotA():
     # some measure of sparsity, like average degree, or a heatmap
     # size of connected components?
     print(A*W)
-    sns.heatmap(data=(A*W), annot=False)
-    fig = plt.gcf()
-    fig.set_size_inches(4, 4)
     # TODO: set x and y axis to zipcode number?
+    fr = open("data/zip_mapping.pkl", "rb")
+    node_to_zip = pkl.load(fr)
+    print(node_to_zip)
+    zips = []
+    for i in range(A.shape[0]):
+        zips.append(node_to_zip[i+1])
+    sns.heatmap(data=(A*W), xticklabels=zips, yticklabels=zips, annot=False)
+    fig = plt.gcf()
+    fig.set_size_inches(6, 6)
     plt.title("Interaction between zipcodes")
+    plt.tick_params(axis='both', which='major', labelsize=5)
     plt.ylabel("Initiating node")
     plt.xlabel("Receiving node")
     plt.tight_layout()
-    fig.savefig("implic_net_struct.png", dpi=100)
-# plotA()
+    fig.savefig("implic_net_struct.png", dpi=150)
+plotA()
