@@ -87,8 +87,8 @@ class Encoder(nn.Module):
         """
         batch_size, seq_len = vertex.size()
         similarity_matrix = torch.zeros(batch_size, 1, seq_len, seq_len)
-        A = np.load('D:\Cornell 2023 Spring\CS 6850 Networks\Structured-Transformer-Hawkes-Process\911_network_structure\A_cumulative_dt_max_20.npy')
-        W = np.load('D:\Cornell 2023 Spring\CS 6850 Networks\Structured-Transformer-Hawkes-Process\911_network_structure\W_cumulative_dt_max_20.npy')
+        A = np.load('D:\Cornell 2023 Spring\CS 6850 Networks\Structured-Transformer-Hawkes-Process\911_network_structure\A_cumulative_dt_max_500.npy')
+        W = np.load('D:\Cornell 2023 Spring\CS 6850 Networks\Structured-Transformer-Hawkes-Process\911_network_structure\W_cumulative_dt_max_500.npy')
         for b in range(batch_size):
             for i in range(seq_len):
                 for j in range(seq_len):
@@ -97,8 +97,8 @@ class Encoder(nn.Module):
                     if v_i != 0 and v_j != 0:
                         zip_i = self.zip_mapping[v_i]
                         zip_j = self.zip_mapping[v_j]
-                        if abs(zip_i - zip_j) <= 10:
-                            similarity_matrix[b,0,i,j] = 0.001
+                        # if abs(zip_i - zip_j) <= 10:
+                        #     similarity_matrix[b,0,i,j] = 0.001
                         similarity_matrix[b,0,i,j] = A[v_i, v_j] * W[v_i, v_j] * 10
         return similarity_matrix
 
